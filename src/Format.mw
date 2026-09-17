@@ -1,0 +1,188 @@
+-- Filling cells with their lines, aligned and styled, and drawing the lines
+-- around them: the crate's `src/utils/formatting/content_format.rs` and
+-- `borders.rs`, and `src/utils/mod.rs`.
+--
+-- Copyright Arne Beer and the comfy-table contributors, and the Meadow port's
+-- authors. Licensed under MIT: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use Std.String as S
+use unicodeWidth (width)
+use unicodeSegmentation (graphemeIndices)
+use comfyTable.Style
+use comfyTable.Cell
+use comfyTable.Table
+use comfyTable.Split (splitLine)
+use comfyTable.Layout (DisplayInfo, arrangeContent, infoWidth)
+
+fun sat a b = if a > b then a - b else 0
+
+fun spaces n = S.repeat " " n
+
+fun charText c = charsToString #[c]
+
+fun orSpace m =
+  match m with
+  | Just c -> c
+  | None -> ' '
+
+-- --- styling ------------------------------------------------------------------------------
+
+-- `line` in the cell's colours and attributes, as crossterm writes them.
+fun styleLine line (c : Cell) =
+  if c.fg == None and c.bg == None and V.isEmpty c.attributes
+  then line
+  else
+    let bg =
+      match c.bg with
+      | Just color -> setBackground color
+      | None -> ""
+    in
+    let fg =
+      match c.fg with
+      | Just color -> setForeground color
+      | None -> ""
+    in
+    let attrs =
+      S.join "" (V.map (\a -> "\u{1b}[${attributeSgr a}m") (V.filter (\a -> V.elem a c.attributes) allAttributes))
+    in
+    let after =
+      if not (V.isEmpty c.attributes)
+      then "\u{1b}[0m"
+      else
+        let resetBg = if c.bg != None then setBackground Color.Reset else "" in
+        resetBg ++ (if c.fg != None then setForeground Color.Reset else "")
+    in
+    bg ++ fg ++ attrs ++ line ++ after
+
+-- --- content ------------------------------------------------------------------------------
+
+fun delimiterOf (c : Cell) (info : DisplayInfo) (t : Table) =
+  match c.delimiter with
+  | Just d -> d
+  | None ->
+      match info.delimiter with
+      | Just d -> d
+      | None ->
+          match t.delimiter with
+          | Just d -> d
+          | None -> ' '
+
+-- `line` padded and aligned within its column, and styled.
+fun alignLine (t : Table) (info : DisplayInfo) (c : Cell) line =
+  let remaining = sat info.contentWidth (width line) in
+  let styled = if shouldStyle t and t.styleTextOnly then styleLine line c else line in
+  let alignment =
+    match c.alignment with
+    | Just a -> a
+    | None ->
+        match info.cellAlignment with
+        | Just a -> a
+        | None -> CellAlignment.AlignLeft
+  in
+  let (pads : (Int, Int)) =
+    match alignment with
+    | CellAlignment.AlignLeft -> (0, remaining)
+    | CellAlignment.AlignRight -> (remaining, 0)
+    | CellAlignment.AlignCenter -> ((remaining + 1) / 2, remaining / 2)
+  in
+  let padded = spaces (fst info.padding + fst pads) ++ styled ++ spaces (snd pads + snd info.padding) in
+  if shouldStyle t and not t.styleTextOnly then styleLine padded c else padded
+
+-- `line` cut to fit `maxWidth` columns with `indicator` after it.
+fun truncateLine line maxWidth indicator =
+  let shown = if width indicator > maxWidth then "" else indicator in
+  let gs = graphemeIndices True line in
+  let rec go k used =
+    match V.get gs k with
+    | None -> line
+    | Just (i, g) ->
+        let w = width g in
+        if used + w > maxWidth then stringSlice line 0 i else go (k + 1) (used + w)
+  in
+  go 0 (width shown) ++ shown
+
+-- A cell's lines, split, cut to the row's height and aligned.
+fun cellLines (t : Table) (r : Row) (info : DisplayInfo) (c : Cell) =
+  let d = delimiterOf c info t in
+  let split =
+    V.concatMap
+      (\line -> if width line > info.contentWidth then splitLine line info.contentWidth d else [line])
+      c.content
+  in
+  let capped =
+    match r.maxHeight with
+    | Just h ->
+        if V.len split > h
+        then
+          let kept = V.take split h in
+          V.set kept (h - 1) (truncateLine (V.getOr "" kept (h - 1)) info.contentWidth t.truncationIndicator)
+        else split
+    | None -> split
+  in
+  V.map (alignLine t info c) capped
+
+-- The row as lines, each a vector of the visible columns' parts.
+@pub(pkg) fun formatRow (r : Row) infos t =
+  let step = \acc (info : DisplayInfo) ->
+    match acc with
+    | (cells, k) ->
+        if info.isHidden
+        then (cells, k + 1)
+        else
+          match V.get r.cells k with
+          | Just c -> (V.pushBack cells (cellLines t r info c, info), k + 1)
+          | None -> (V.pushBack cells ([spaces (infoWidth info)], info), k + 1)
+  in
+  let columns = fst (V.foldl step (V.empty, 0) infos) in
+  let height = V.foldl (\m col -> if V.len (fst col) > m then V.len (fst col) else m) 0 columns in
+  V.map
+    (\line -> V.map (\col -> match col with | (ls, info) -> V.getOr (spaces (infoWidth info)) ls line) columns)
+    (V.range 0 height)
+
+@pub(pkg) fun formatContent (t : Table) infos =
+  let rows = V.map (\r -> formatRow r infos t) t.rows in
+  match t.header with
+  | Just h -> V.pushFront rows (formatRow h infos t)
+  | None -> rows
+
+-- --- borders ------------------------------------------------------------------------------
+
+fun visibleWidths infos = V.map infoWidth (V.filter (\(i : DisplayInfo) -> not i.isHidden) infos)
+
+-- A horizontal line: its ends if the table has them, and a fill for each
+-- visible column with junctions between, if `junctions`.
+fun horizontal (t : Table) infos (l : LineStyle) junctions =
+  let fill = charText (orSpace l.fill) in
+  let junction = if junctions then charText (orSpace l.junction) else "" in
+  let middle = S.join junction (V.map (S.repeat fill) (visibleWidths infos)) in
+  let left = if hasLeftBorder t.style then charText (orSpace l.left) else "" in
+  let right = if hasRightBorder t.style then charText (orSpace l.right) else "" in
+  left ++ middle ++ right
+
+fun contentLine (t : Table) (style : ContentLineStyle) parts =
+  let left = if hasLeftBorder t.style then charText (orSpace style.left) else "" in
+  let divider = if hasVerticalLines t.style then charText (orSpace style.junction) else "" in
+  let right = if hasRightBorder t.style then charText (orSpace style.right) else "" in
+  left ++ S.join divider parts ++ right
+
+@pub(pkg) fun drawBorders (t : Table) rows infos =
+  let hasHeader = t.header != None in
+  let s = t.style in
+  let rowCount = V.len rows in
+  let drawRow = \out k ->
+    let isHeader = k == 0 and hasHeader in
+    let style = if isHeader then s.headerLines else s.contentLines in
+    let lines = V.append out (V.map (contentLine t style) (V.getOr V.empty rows k)) in
+    if isHeader
+    then
+      if hasHeaderSeparator s
+      then V.pushBack lines (horizontal t infos s.headerSeparator (hasVerticalLines s))
+      else lines
+    else if k + 1 < rowCount and hasRowSeparator s
+    then V.pushBack lines (horizontal t infos s.rowSeparator (hasVerticalLines s))
+    else lines
+  in
+  let top = if hasTopBorder s then [horizontal t infos s.topBorder True] else [] in
+  let body = V.foldl drawRow top (V.range 0 rowCount) in
+  if hasBottomBorder s then V.pushBack body (horizontal t infos s.bottomBorder True) else body

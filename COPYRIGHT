@@ -1,0 +1,8 @@
+comfyTable (the Meadow package) is a port of the Rust crate comfy-table
+(https://github.com/nukesor/comfy-table), version 8.0.0, by Arne Beer and
+contributors, to Meadow. It writes colours as crossterm 0.29.0
+(https://github.com/crossterm-rs/crossterm) does. Its test cases are generated
+from those crates, and its code is translated from their source.
+
+comfy-table and crossterm are licensed under the MIT license, and so is this
+port: see LICENSE (comfy-table's) and LICENSE-crossterm.

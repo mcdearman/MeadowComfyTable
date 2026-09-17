@@ -1,0 +1,42 @@
+-- A table as text: the crate's `Table::lines`, `Display` and `trim_fmt`.
+--
+-- Copyright Arne Beer and the comfy-table contributors, and the Meadow port's
+-- authors. Licensed under MIT: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use Std.String as S
+use comfyTable.Table
+use comfyTable.Layout (arrangeContent)
+use comfyTable.Format (formatContent, drawBorders)
+
+-- The table's lines.
+@pub fun lines t =
+  let infos = arrangeContent t in
+  drawBorders t (formatContent t infos) infos
+
+-- The table as text, its lines joined by newlines.
+@pub fun render t = S.join "\n" (lines t)
+
+-- Rust's `char::is_whitespace`.
+fun isWhitespace c =
+  let cp = charCode c in
+  (cp >= 9 and cp <= 13)
+    or cp == 32
+    or cp == 0x85
+    or cp == 0xA0
+    or cp == 0x1680
+    or (cp >= 0x2000 and cp <= 0x200A)
+    or cp == 0x2028
+    or cp == 0x2029
+    or cp == 0x202F
+    or cp == 0x205F
+    or cp == 0x3000
+
+-- `s` without the whitespace at its end.
+fun trimEnd s =
+  let cs = stringToChars s in
+  let rec go n = if n > 0 and isWhitespace (arrayGet cs (n - 1)) then go (n - 1) else n in
+  charsToString (arraySlice cs 0 (go (arrayLen cs)))
+
+-- `render`, without the spaces at the end of each line.
+@pub fun trimFmt t = S.join "\n" (V.map trimEnd (lines t))

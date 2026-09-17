@@ -1,0 +1,35 @@
+-- comfyTable: tables for the terminal, with borders, alignment, colours, and
+-- content wrapped to fit a width. A port of Rust's `comfy-table` crate,
+-- version 8.0.0.
+--
+--   use comfyTable (table, setHeader, addRow, rowOf, render)
+--
+--   render (table |> setHeader (rowOf ["Name", "Age"]) |> addRow (rowOf ["Ada", "36"]))
+--     -- +------+-----+
+--     -- | Name | Age |
+--     -- +============+
+--     -- | Ada  | 36  |
+--     -- +------+-----+
+
+mod Style
+mod Cell
+mod Table
+mod Split
+mod Layout
+mod Format
+mod Render
+@cfg(test)
+mod Cases
+@cfg(test)
+mod Tests
+
+@pub use comfyTable.Style
+@pub use comfyTable.Style.CellAlignment.*
+@pub use comfyTable.Style.Width.*
+@pub use comfyTable.Style.ColumnConstraint.*
+@pub use comfyTable.Style.ContentArrangement.*
+@pub use comfyTable.Style.Color.*
+@pub use comfyTable.Cell
+@pub use comfyTable.Table
+@pub use comfyTable.Split (measureTextWidth)
+@pub use comfyTable.Render

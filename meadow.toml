@@ -1,0 +1,7 @@
+[package]
+name = "comfyTable"
+version = "0.1.0"
+
+[dependencies]
+unicodeWidth = { path = "../meadow-unicode-width" }
+unicodeSegmentation = { path = "../meadow-unicode-segmentation" }

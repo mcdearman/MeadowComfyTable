@@ -1,0 +1,149 @@
+-- A table: the crate's `src/table.rs`, less its terminal detection. A table
+-- here is styled only when asked (`enforceStyling`), and is only as wide as
+-- `setWidth` says.
+--
+-- Copyright Arne Beer and the comfy-table contributors, and the Meadow port's
+-- authors. Licensed under MIT: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use comfyTable.Style
+use comfyTable.Cell
+
+@pub record Table = {
+  columns : [Column],
+  style : TableStyle,
+  header : Maybe Row,
+  rows : [Row],
+  arrangement : ContentArrangement,
+  delimiter : Maybe Char,
+  truncationIndicator : String,
+  width : Maybe Int,
+  enforceStyling : Bool,
+  styleTextOnly : Bool
+}
+
+-- An empty table, drawn with `asciiFull`.
+@pub def table =
+  Table {
+    columns = [],
+    style = asciiFull,
+    header = None,
+    rows = [],
+    arrangement = ContentArrangement.Disabled,
+    delimiter = None,
+    truncationIndicator = "…",
+    width = None,
+    enforceStyling = False,
+    styleTextOnly = False
+  }
+
+-- `t` with a column for each cell of `r` it does not have yet.
+fun autogenerateColumns (r : Row) (t : Table) =
+  let have = V.len t.columns in
+  let need = V.len r.cells in
+  if need > have then { t | columns = V.append t.columns (V.map column (V.range have need)) } else t
+
+@pub fun setHeader r (t : Table) = { autogenerateColumns r t | header = Just r }
+
+@pub fun addRow (r : Row) (t : Table) =
+  let t2 = autogenerateColumns r t in
+  { t2 | rows = V.pushBack t2.rows { r | index = Just (V.len t2.rows) } }
+
+@pub fun addRows rows t = V.foldl (\acc r -> addRow r acc) t rows
+
+-- `addRow`, if `keep` says so, given the number of rows so far and the row.
+@pub fun addRowIf keep r (t : Table) = if keep (V.len t.rows) r then addRow r t else t
+
+-- `addRows`, if `keep` says so, given the number of rows so far and the rows.
+@pub fun addRowsIf keep rows (t : Table) = if keep (V.len t.rows) rows then addRows rows t else t
+
+@pub fun rowCount (t : Table) = V.len t.rows
+
+@pub fun isEmpty (t : Table) = V.isEmpty t.rows
+
+-- How wide the table may be, in characters.
+@pub fun setWidth w (t : Table) = { t | width = Just w }
+
+@pub fun setContentArrangement a (t : Table) = { t | arrangement = a }
+
+-- Where long lines may be split, in place of a space.
+@pub fun setDelimiter d (t : Table) = { t | delimiter = Just d }
+
+-- What ends a cell cut short by a row's `maxHeight`: `…` unless changed.
+@pub fun setTruncationIndicator s (t : Table) = { t | truncationIndicator = s }
+
+-- Draw the cells' colours and attributes.
+@pub fun enforceStyling (t : Table) = { t | enforceStyling = True }
+
+-- Style only a cell's text, not the padding around it.
+@pub fun setStyleTextOnly (t : Table) = { t | styleTextOnly = True }
+
+@pub(pkg) fun shouldStyle (t : Table) = t.enforceStyling
+
+-- The constraints, in order, for as many columns as there are of both.
+@pub fun setConstraints constraints (t : Table) =
+  let set = \k (c : Column) ->
+    match V.get constraints k with
+    | Just constraint -> setConstraint constraint c
+    | None -> c
+  in
+  { t | columns = V.map (\k -> set k (V.getOr (column k) t.columns k)) (V.range 0 (V.len t.columns)) }
+
+@pub fun loadStyle s (t : Table) = { t | style = s }
+
+@pub fun modifyStyle f (t : Table) = { t | style = f t.style }
+
+@pub fun getColumn k (t : Table) = V.get t.columns k
+
+-- `t` with `f` applied to column `k`, if there is one.
+@pub fun updateColumn k f (t : Table) =
+  match V.get t.columns k with
+  | Just c -> { t | columns = V.set t.columns k (f c) }
+  | None -> t
+
+-- `t` with a column for every cell of every row.
+@pub fun discoverColumns (t : Table) = V.foldl (\acc r -> autogenerateColumns r acc) t t.rows
+
+@pub fun columnCount t =
+  let (d : Table) = discoverColumns t in
+  V.len d.columns
+
+@pub fun getRow k (t : Table) = V.get t.rows k
+
+-- `t` with `f` applied to row `k`, if there is one. Unlike the crate, this
+-- adds columns for any cells the row gains.
+@pub fun updateRow k f (t : Table) =
+  match V.get t.rows k with
+  | Just r -> discoverColumns { t | rows = V.set t.rows k (f r) }
+  | None -> t
+
+-- Column `k`'s cell in each row, if the row has one.
+@pub fun columnCells k (t : Table) = V.map (\(r : Row) -> V.get r.cells k) t.rows
+
+-- `columnCells`, with the header's cell first.
+@pub fun columnCellsWithHeader k (t : Table) =
+  let head =
+    match t.header with
+    | Just (h : Row) -> V.get h.cells k
+    | None -> None
+  in
+  V.pushFront (columnCells k t) head
+
+-- The width of each column's widest content, and at least 1.
+@pub fun columnMaxContentWidths (t : Table) =
+  let widen = \widths (r : Row) ->
+    V.foldl
+      (\acc k ->
+        let w = V.getOr 0 (maxContentWidths r) k in
+        let w1 = if w < 1 then 1 else w in
+        if V.getOr 0 acc k < w1 then V.set acc k w1 else acc)
+      widths
+      (V.range 0 (cellCount r))
+  in
+  let start = V.replicate (V.len t.columns) 0 in
+  let withHeader =
+    match t.header with
+    | Just h -> widen start h
+    | None -> start
+  in
+  V.foldl widen withHeader t.rows

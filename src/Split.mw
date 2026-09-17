@@ -1,0 +1,79 @@
+-- Splitting a line that is too wide for its column: the crate's
+-- `src/utils/formatting/content_split/`, without `custom_styling`.
+--
+-- Copyright Arne Beer and the comfy-table contributors, and the Meadow port's
+-- authors. Licensed under MIT: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use Std.String as S
+use unicodeWidth (width)
+use unicodeSegmentation (graphemeIndices)
+
+-- The columns `s` takes.
+@pub fun measureTextWidth s = width s
+
+fun sat a b = if a > b then a - b else 0
+
+-- `word` cut after at most `allowed` columns, by whole graphemes.
+@pub(pkg) fun splitLongWord allowed word =
+  let n = stringByteLength word in
+  let printable = \i -> let b = toInt (stringByteAt word i) in b >= 32 and b < 127 in
+  let rec plain i = i >= n or (printable i and plain (i + 1)) in
+  let at =
+    if plain 0
+    then (if n < allowed then n else allowed)
+    else
+      let rec go gs k used =
+        match V.get gs k with
+        | Just (i, g) -> let w = width g in if used + w > allowed then i else go gs (k + 1) (used + w)
+        | None -> n
+      in
+      go (graphemeIndices True word) 0 0
+  in
+  (stringSlice word 0 at, stringSlice word at n)
+
+-- Lines with fewer free columns than this are finished.
+def minFreeChars = 2
+
+-- `line`, split at `delimiter` into lines of at most `contentWidth` columns
+-- where it can be, and mid-word where it cannot.
+@pub(pkg) fun splitLine line contentWidth delimiter =
+  let d = charsToString #[delimiter] in
+  let delimiterWidth = width d in
+  -- Finishes the current line if there is no room left on it.
+  let full = \lines current len ->
+    if len > sat contentWidth minFreeChars then (V.pushBack lines current, "", 0) else (lines, current, len)
+  in
+  let rec go stack lines current len =
+    match stack with
+    | Nil -> if current == "" then lines else V.pushBack lines current
+    | Cons next rest ->
+        let nextLen = width next in
+        let fresh = current == "" in
+        let added = if fresh then nextLen + len else nextLen + len + 1 in
+        let remaining = if fresh then contentWidth - len else sat (contentWidth - len) 1 in
+        if added <= contentWidth
+        then
+          let joined = if fresh then next else current ++ d ++ next in
+          let joinedLen = if fresh then len + nextLen else len + delimiterWidth + nextLen in
+          (match full lines joined joinedLen with
+           | (l2, c2, n2) -> go rest l2 c2 n2)
+        else if not fresh and remaining <= minFreeChars
+        then go stack (V.pushBack lines current) "" 0
+        else if nextLen > contentWidth
+        then
+          let start = if fresh then current else current ++ d in
+          (match splitLongWord remaining next with
+           | (head, tail) ->
+               if fresh and head == ""
+               then
+                 let cs = stringToChars tail in
+                 let first = charsToString (arraySlice cs 0 1) in
+                 let others = charsToString (arraySlice cs 1 (arrayLen cs)) in
+                 go (Cons others rest) (V.pushBack lines (start ++ first)) "" 0
+               else go (Cons tail rest) (V.pushBack lines (start ++ head)) "" 0)
+        else
+          match full (V.pushBack lines current) next nextLen with
+          | (l2, c2, n2) -> go rest l2 c2 n2
+  in
+  go (V.toList (S.split d line)) V.empty "" 0

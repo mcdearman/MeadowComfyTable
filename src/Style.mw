@@ -1,0 +1,355 @@
+-- How a table looks: alignment, column constraints, arrangement, colours and
+-- attributes, and the characters its lines are drawn with. The crate's
+-- `src/style/`, with the escape sequences of the crossterm version it uses.
+--
+-- Copyright Arne Beer and the comfy-table contributors, the crossterm
+-- contributors, and the Meadow port's authors. Licensed under MIT: see
+-- LICENSE, LICENSE-crossterm and COPYRIGHT.
+
+use Std.Collections.Vector as V
+
+-- Where a cell's text sits within its column.
+@pub data CellAlignment = AlignLeft | AlignRight | AlignCenter
+
+-- A width: a number of characters, or a share of the table's width, with
+-- borders taken out.
+@pub data Width = Fixed Int | Percentage Int
+
+-- How wide a column may be.
+@pub data ColumnConstraint =
+  -- Not shown at all.
+  Hidden
+  -- As wide as its widest content, whatever the table's width.
+  | ContentWidth
+  -- Exactly this wide, padding included.
+  | Absolute Width
+  -- At least this wide, padding included.
+  | LowerBoundary Width
+  -- At most this wide, padding included.
+  | UpperBoundary Width
+  -- Between the two, padding included.
+  | Boundaries Width Width
+
+-- How content is fitted into the table's width.
+@pub data ContentArrangement =
+  -- Every column as wide as its content, whatever the table's width.
+  Disabled
+  -- Content is wrapped to keep the table within its width.
+  | Dynamic
+  -- As `Dynamic`, and the table is widened to fill its width.
+  | DynamicFullWidth
+
+-- A colour for a cell's text or background.
+@pub data Color =
+  Reset
+  | Black
+  | DarkGrey
+  | Red
+  | DarkRed
+  | Green
+  | DarkGreen
+  | Yellow
+  | DarkYellow
+  | Blue
+  | DarkBlue
+  | Magenta
+  | DarkMagenta
+  | Cyan
+  | DarkCyan
+  | White
+  | Grey
+  | Rgb Int Int Int
+  | AnsiValue Int
+
+-- A text attribute for a cell.
+@pub data Attribute =
+  Reset
+  | Bold
+  | Dim
+  | Italic
+  | Underlined
+  | DoubleUnderlined
+  | Undercurled
+  | Underdotted
+  | Underdashed
+  | SlowBlink
+  | RapidBlink
+  | Reverse
+  | Hidden
+  | CrossedOut
+  | Fraktur
+  | NoBold
+  | NormalIntensity
+  | NoItalic
+  | NoUnderline
+  | NoBlink
+  | NoReverse
+  | NoHidden
+  | NotCrossedOut
+  | Framed
+  | Encircled
+  | OverLined
+  | NotFramedOrEncircled
+  | NotOverLined
+
+-- Every attribute, in the order their sequences are written.
+@pub def allAttributes =
+  [ Attribute.Reset,
+    Attribute.Bold,
+    Attribute.Dim,
+    Attribute.Italic,
+    Attribute.Underlined,
+    Attribute.DoubleUnderlined,
+    Attribute.Undercurled,
+    Attribute.Underdotted,
+    Attribute.Underdashed,
+    Attribute.SlowBlink,
+    Attribute.RapidBlink,
+    Attribute.Reverse,
+    Attribute.Hidden,
+    Attribute.CrossedOut,
+    Attribute.Fraktur,
+    Attribute.NoBold,
+    Attribute.NormalIntensity,
+    Attribute.NoItalic,
+    Attribute.NoUnderline,
+    Attribute.NoBlink,
+    Attribute.NoReverse,
+    Attribute.NoHidden,
+    Attribute.NotCrossedOut,
+    Attribute.Framed,
+    Attribute.Encircled,
+    Attribute.OverLined,
+    Attribute.NotFramedOrEncircled,
+    Attribute.NotOverLined ]
+
+-- The SGR parameter that turns the attribute on.
+@pub fun attributeSgr a =
+  match a with
+  | Attribute.Reset -> "0"
+  | Attribute.Bold -> "1"
+  | Attribute.Dim -> "2"
+  | Attribute.Italic -> "3"
+  | Attribute.Underlined -> "4"
+  | Attribute.DoubleUnderlined -> "4:2"
+  | Attribute.Undercurled -> "4:3"
+  | Attribute.Underdotted -> "4:4"
+  | Attribute.Underdashed -> "4:5"
+  | Attribute.SlowBlink -> "5"
+  | Attribute.RapidBlink -> "6"
+  | Attribute.Reverse -> "7"
+  | Attribute.Hidden -> "8"
+  | Attribute.CrossedOut -> "9"
+  | Attribute.Fraktur -> "20"
+  | Attribute.NoBold -> "21"
+  | Attribute.NormalIntensity -> "22"
+  | Attribute.NoItalic -> "23"
+  | Attribute.NoUnderline -> "24"
+  | Attribute.NoBlink -> "25"
+  | Attribute.NoReverse -> "27"
+  | Attribute.NoHidden -> "28"
+  | Attribute.NotCrossedOut -> "29"
+  | Attribute.Framed -> "51"
+  | Attribute.Encircled -> "52"
+  | Attribute.OverLined -> "53"
+  | Attribute.NotFramedOrEncircled -> "54"
+  | Attribute.NotOverLined -> "55"
+
+-- The colour's part of an SGR sequence, after `38;` or `48;`.
+fun colorCode c =
+  match c with
+  | Color.Black -> "5;0"
+  | Color.DarkGrey -> "5;8"
+  | Color.Red -> "5;9"
+  | Color.DarkRed -> "5;1"
+  | Color.Green -> "5;10"
+  | Color.DarkGreen -> "5;2"
+  | Color.Yellow -> "5;11"
+  | Color.DarkYellow -> "5;3"
+  | Color.Blue -> "5;12"
+  | Color.DarkBlue -> "5;4"
+  | Color.Magenta -> "5;13"
+  | Color.DarkMagenta -> "5;5"
+  | Color.Cyan -> "5;14"
+  | Color.DarkCyan -> "5;6"
+  | Color.White -> "5;15"
+  | Color.Grey -> "5;7"
+  | Color.Rgb r g b -> "2;${r};${g};${b}"
+  | Color.AnsiValue n -> "5;${n}"
+  | Color.Reset -> ""
+
+-- The sequence that sets the text colour to `c`.
+@pub fun setForeground c =
+  match c with
+  | Color.Reset -> "\u{1b}[39m"
+  | _ -> "\u{1b}[38;${colorCode c}m"
+
+-- The sequence that sets the background colour to `c`.
+@pub fun setBackground c =
+  match c with
+  | Color.Reset -> "\u{1b}[49m"
+  | _ -> "\u{1b}[48;${colorCode c}m"
+
+-- --- lines --------------------------------------------------------------------------------
+
+-- The characters of a horizontal line: its left end, what fills it, where it
+-- meets a column divider, and its right end. `None` draws a space, or nothing
+-- where the line's part is not drawn at all.
+@pub record LineStyle = { left : Maybe Char, fill : Maybe Char, junction : Maybe Char, right : Maybe Char }
+
+-- The characters around content: the left border, the column divider and the
+-- right border.
+@pub record ContentLineStyle = { left : Maybe Char, junction : Maybe Char, right : Maybe Char }
+
+@pub fun lineStyle l f j r = LineStyle { left = Just l, fill = Just f, junction = Just j, right = Just r }
+
+@pub def noLine = LineStyle { left = None, fill = None, junction = None, right = None }
+
+@pub fun contentLineStyle l j r = ContentLineStyle { left = Just l, junction = Just j, right = Just r }
+
+@pub def noContentLine = ContentLineStyle { left = None, junction = None, right = None }
+
+fun isVisible (l : LineStyle) = l.left != None or l.fill != None or l.junction != None or l.right != None
+
+-- Every line of a table.
+@pub record TableStyle = {
+  topBorder : LineStyle,
+  headerLines : ContentLineStyle,
+  headerSeparator : LineStyle,
+  contentLines : ContentLineStyle,
+  rowSeparator : LineStyle,
+  bottomBorder : LineStyle
+}
+
+-- No lines at all: the crate's `NOTHING`.
+@pub def tableStyle =
+  TableStyle {
+    topBorder = noLine,
+    headerLines = noContentLine,
+    headerSeparator = noLine,
+    contentLines = noContentLine,
+    rowSeparator = noLine,
+    bottomBorder = noLine
+  }
+
+-- `s` with rounded outer corners.
+@pub fun withRoundedCorners (s : TableStyle) =
+  let top = s.topBorder in
+  let bottom = s.bottomBorder in
+  { s |
+    topBorder = { top | left = Just '╭', right = Just '╮' },
+    bottomBorder = { bottom | left = Just '╰', right = Just '╯' } }
+
+-- `s` with solid lines between columns and rows.
+@pub fun withSolidInnerBorders (s : TableStyle) =
+  let header = s.headerLines in
+  let content = s.contentLines in
+  let separator = s.rowSeparator in
+  { s |
+    headerLines = { header | junction = Just '│' },
+    contentLines = { content | junction = Just '│' },
+    rowSeparator = { separator | fill = Just '─' } }
+
+@pub(pkg) fun hasTopBorder (s : TableStyle) = isVisible s.topBorder
+
+@pub(pkg) fun hasBottomBorder (s : TableStyle) = isVisible s.bottomBorder
+
+@pub(pkg) fun hasHeaderSeparator (s : TableStyle) = isVisible s.headerSeparator
+
+@pub(pkg) fun hasRowSeparator (s : TableStyle) = isVisible s.rowSeparator
+
+fun lineParts (s : TableStyle) = [s.topBorder, s.headerSeparator, s.rowSeparator, s.bottomBorder]
+
+fun contentParts (s : TableStyle) = [s.headerLines, s.contentLines]
+
+@pub(pkg) fun hasLeftBorder s =
+  V.any (\(c : ContentLineStyle) -> c.left != None) (contentParts s)
+    or V.any (\(l : LineStyle) -> l.left != None) (lineParts s)
+
+@pub(pkg) fun hasRightBorder s =
+  V.any (\(c : ContentLineStyle) -> c.right != None) (contentParts s)
+    or V.any (\(l : LineStyle) -> l.right != None) (lineParts s)
+
+@pub(pkg) fun hasVerticalLines s =
+  V.any (\(c : ContentLineStyle) -> c.junction != None) (contentParts s)
+    or V.any (\(l : LineStyle) -> l.junction != None) (lineParts s)
+
+-- --- presets ------------------------------------------------------------------------------
+
+@pub def asciiFull =
+  { tableStyle |
+    topBorder = lineStyle '+' '-' '+' '+',
+    headerLines = contentLineStyle '|' '|' '|',
+    headerSeparator = lineStyle '+' '=' '=' '+',
+    contentLines = contentLineStyle '|' '|' '|',
+    rowSeparator = lineStyle '|' '-' '+' '|',
+    bottomBorder = lineStyle '+' '-' '+' '+' }
+
+@pub def asciiFullCondensed = { asciiFull | rowSeparator = noLine }
+
+@pub def asciiNoBorders =
+  { tableStyle |
+    headerLines = { noContentLine | junction = Just '|' },
+    headerSeparator = { noLine | fill = Just '=', junction = Just '=' },
+    contentLines = { noContentLine | junction = Just '|' },
+    rowSeparator = { noLine | fill = Just '-', junction = Just '+' } }
+
+@pub def asciiBordersOnly =
+  { tableStyle |
+    topBorder = lineStyle '+' '-' '-' '+',
+    headerLines = { noContentLine | left = Just '|', right = Just '|' },
+    headerSeparator = lineStyle '+' '=' '=' '+',
+    contentLines = { noContentLine | left = Just '|', right = Just '|' },
+    rowSeparator = { noLine | left = Just '|', right = Just '|' },
+    bottomBorder = lineStyle '+' '-' '-' '+' }
+
+@pub def asciiBordersOnlyCondensed = { asciiBordersOnly | rowSeparator = noLine }
+
+@pub def asciiHorizontalOnly =
+  { tableStyle |
+    topBorder = { noLine | fill = Just '-', junction = Just '-' },
+    headerSeparator = { noLine | fill = Just '=', junction = Just '=' },
+    rowSeparator = { noLine | fill = Just '-', junction = Just '-' },
+    bottomBorder = { noLine | fill = Just '-', junction = Just '-' } }
+
+@pub def asciiMarkdown =
+  { tableStyle |
+    headerLines = contentLineStyle '|' '|' '|',
+    headerSeparator = lineStyle '|' '-' '|' '|',
+    contentLines = contentLineStyle '|' '|' '|' }
+
+@pub def utf8Full =
+  { tableStyle |
+    topBorder = lineStyle '┌' '─' '┬' '┐',
+    headerLines = contentLineStyle '│' '┆' '│',
+    headerSeparator = lineStyle '╞' '═' '╪' '╡',
+    contentLines = contentLineStyle '│' '┆' '│',
+    rowSeparator = lineStyle '├' '╌' '┼' '┤',
+    bottomBorder = lineStyle '└' '─' '┴' '┘' }
+
+@pub def utf8FullCondensed = { utf8Full | rowSeparator = noLine }
+
+@pub def utf8NoBorders =
+  { tableStyle |
+    headerLines = { noContentLine | junction = Just '┆' },
+    headerSeparator = { noLine | fill = Just '═', junction = Just '╪' },
+    contentLines = { noContentLine | junction = Just '┆' },
+    rowSeparator = { noLine | fill = Just '╌', junction = Just '┼' } }
+
+@pub def utf8BordersOnly =
+  { tableStyle |
+    topBorder = lineStyle '┌' '─' '─' '┐',
+    headerLines = { noContentLine | left = Just '│', right = Just '│' },
+    headerSeparator = lineStyle '╞' '═' '═' '╡',
+    contentLines = { noContentLine | left = Just '│', right = Just '│' },
+    bottomBorder = lineStyle '└' '─' '─' '┘' }
+
+@pub def utf8HorizontalOnly =
+  { tableStyle |
+    topBorder = { noLine | fill = Just '─', junction = Just '─' },
+    headerSeparator = { noLine | fill = Just '═', junction = Just '═' },
+    rowSeparator = { noLine | fill = Just '─', junction = Just '─' },
+    bottomBorder = { noLine | fill = Just '─', junction = Just '─' } }
+
+-- No lines at all.
+@pub def nothing = tableStyle

@@ -1,0 +1,384 @@
+-- The port against the crate: every table in `Cases.mw`, built by the same
+-- steps as the crate built it, drawn as the crate drew it, plus a few
+-- examples.
+--
+-- Every declaration carries `@cfg(test)`, as the tests are no part of the
+-- package.
+
+@cfg(test)
+use Std.Test (assertEq)
+@cfg(test)
+use Std.Collections.Vector as V
+@cfg(test)
+use Std.String as S
+@cfg(test)
+use comfyTable.Cases (cases)
+@cfg(test)
+use comfyTable.Style
+@cfg(test)
+use comfyTable.Cell
+@cfg(test)
+use comfyTable.Table
+@cfg(test)
+use comfyTable.Render
+
+-- --- reading ------------------------------------------------------------------------------
+
+@cfg(test)
+fun num i n =
+  let rec go k acc = if k >= n then acc else go (k + 1) (acc * 64 + (toInt (stringByteAt cases (i + k)) - 48)) in
+  (go 0 0, i + n)
+
+@cfg(test)
+fun str i =
+  let len = fst (num i 3) in
+  (stringSlice cases (i + 3) (i + 3 + len), i + 3 + len)
+
+@cfg(test)
+fun flag i =
+  match num i 1 with
+  | (n, next) -> (n == 1, next)
+
+@cfg(test)
+fun charAt i =
+  match str i with
+  | (s, next) -> (arrayGet (stringToChars s) 0, next)
+
+-- Runs `f` at `i` if the flag there is set, giving `Just` its value.
+@cfg(test)
+fun maybeAt i f =
+  match flag i with
+  | (True, next) ->
+      (match f next with
+       | (x, after) -> (Just x, after))
+  | (False, next) -> (None, next)
+
+@cfg(test)
+def namedColors =
+  [ Color.Reset,
+    Color.Black,
+    Color.DarkGrey,
+    Color.Red,
+    Color.DarkRed,
+    Color.Green,
+    Color.DarkGreen,
+    Color.Yellow,
+    Color.DarkYellow,
+    Color.Blue,
+    Color.DarkBlue,
+    Color.Magenta,
+    Color.DarkMagenta,
+    Color.Cyan,
+    Color.DarkCyan,
+    Color.White,
+    Color.Grey ]
+
+@cfg(test)
+def alignments = [CellAlignment.AlignLeft, CellAlignment.AlignRight, CellAlignment.AlignCenter]
+
+@cfg(test)
+def presetStyles =
+  [ asciiFull,
+    asciiFullCondensed,
+    asciiNoBorders,
+    asciiBordersOnly,
+    asciiBordersOnlyCondensed,
+    asciiHorizontalOnly,
+    asciiMarkdown,
+    utf8Full,
+    utf8FullCondensed,
+    utf8NoBorders,
+    utf8BordersOnly,
+    utf8HorizontalOnly ]
+
+@cfg(test)
+fun readColor i =
+  match num i 1 with
+  | (0, next) -> (None, next)
+  | (1, next) ->
+      let k = num next 1 in
+      (Just (V.getOr Color.Reset namedColors (fst k)), snd k)
+  | (2, next) ->
+      let r = num next 2 in
+      let g = num (snd r) 2 in
+      let b = num (snd g) 2 in
+      (Just (Color.Rgb (fst r) (fst g) (fst b)), snd b)
+  | (_, next) ->
+      let v = num next 2 in
+      (Just (Color.AnsiValue (fst v)), snd v)
+
+@cfg(test)
+fun readCell i =
+  let content = str i in
+  let d = maybeAt (snd content) charAt in
+  let alignment = num (snd d) 1 in
+  let fg = readColor (snd alignment) in
+  let bg = readColor (snd fg) in
+  let count = num (snd bg) 1 in
+  let c0 = cell (fst content) in
+  let c1 =
+    match fst d with
+    | Just ch -> setCellDelimiter ch c0
+    | None -> c0
+  in
+  let alignmentAt = \k -> V.getOr CellAlignment.AlignLeft alignments (k - 1) in
+  let c2 = if fst alignment > 0 then setAlignment (alignmentAt (fst alignment)) c1 else c1 in
+  let c3 =
+    match fst fg with
+    | Just color -> setFg color c2
+    | None -> c2
+  in
+  let c4 =
+    match fst bg with
+    | Just color -> setBg color c3
+    | None -> c3
+  in
+  let rec attrs k at c =
+    if k >= fst count
+    then (c, at)
+    else
+      match num at 1 with
+      | (a, next) -> attrs (k + 1) next (addAttribute (V.getOr Attribute.Reset allAttributes a) c)
+  in
+  attrs 0 (snd count) c4
+
+@cfg(test)
+fun readRow i =
+  let height = maybeAt i (\at -> num at 1) in
+  let count = num (snd height) 1 in
+  let rec cells k at acc =
+    if k >= fst count
+    then (acc, at)
+    else
+      match readCell at with
+      | (c, next) -> cells (k + 1) next (V.pushBack acc c)
+  in
+  match cells 0 (snd count) V.empty with
+  | (cs, next) ->
+      let r = row cs in
+      match fst height with
+      | Just h -> (setMaxHeight h r, next)
+      | None -> (r, next)
+
+@cfg(test)
+fun readWidth i =
+  match flag i with
+  | (True, next) ->
+      (match num next 2 with
+       | (p, after) -> (Width.Percentage p, after))
+  | (False, next) ->
+      match num next 2 with
+      | (w, after) -> (Width.Fixed w, after)
+
+@cfg(test)
+fun readConstraint i =
+  match num i 1 with
+  | (0, next) -> (ColumnConstraint.Hidden, next)
+  | (1, next) -> (ColumnConstraint.ContentWidth, next)
+  | (2, next) ->
+      (match readWidth next with
+       | (w, after) -> (ColumnConstraint.Absolute w, after))
+  | (3, next) ->
+      (match readWidth next with
+       | (w, after) -> (ColumnConstraint.LowerBoundary w, after))
+  | (4, next) ->
+      (match readWidth next with
+       | (w, after) -> (ColumnConstraint.UpperBoundary w, after))
+  | (_, next) ->
+      let lower = readWidth next in
+      let upper = readWidth (snd lower) in
+      (ColumnConstraint.Boundaries (fst lower) (fst upper), snd upper)
+
+-- A line of a style with one of its characters changed.
+@cfg(test)
+fun setSlot (l : LineStyle) slot value =
+  match slot with
+  | 0 -> { l | left = value }
+  | 1 -> { l | fill = value }
+  | 2 -> { l | junction = value }
+  | _ -> { l | right = value }
+
+@cfg(test)
+fun setContentSlot (l : ContentLineStyle) slot value =
+  match slot with
+  | 0 -> { l | left = value }
+  | 1 -> { l | junction = value }
+  | _ -> { l | right = value }
+
+@cfg(test)
+fun override (s : TableStyle) part slot value =
+  match part with
+  | 0 -> { s | topBorder = setSlot s.topBorder slot value }
+  | 1 -> { s | headerLines = setContentSlot s.headerLines slot value }
+  | 2 -> { s | headerSeparator = setSlot s.headerSeparator slot value }
+  | 3 -> { s | contentLines = setContentSlot s.contentLines slot value }
+  | 4 -> { s | rowSeparator = setSlot s.rowSeparator slot value }
+  | _ -> { s | bottomBorder = setSlot s.bottomBorder slot value }
+
+@cfg(test)
+fun readStyle i =
+  let preset = num i 1 in
+  let rounded = flag (snd preset) in
+  let solid = flag (snd rounded) in
+  let count = num (snd solid) 1 in
+  let base = V.getOr nothing presetStyles (fst preset) in
+  let s1 = if fst rounded then withRoundedCorners base else base in
+  let s2 = if fst solid then withSolidInnerBorders s1 else s1 in
+  let rec go k at s =
+    if k >= fst count
+    then (s, at)
+    else
+      let part = num at 1 in
+      let slot = num (snd part) 1 in
+      let value = maybeAt (snd slot) charAt in
+      go (k + 1) (snd value) (override s (fst part) (fst slot) (fst value))
+  in
+  go 0 (snd count) s2
+
+@cfg(test)
+fun readColumnOp i t =
+  let index = num i 1 in
+  let k = fst index in
+  match num (snd index) 1 with
+  | (0, next) ->
+      let l = num next 1 in
+      let r = num (snd l) 1 in
+      (updateColumn k (setPadding (fst l, fst r)) t, snd r)
+  | (1, next) ->
+      (match charAt next with
+       | (d, after) -> (updateColumn k (setColumnDelimiter d) t, after))
+  | (2, next) ->
+      (match num next 1 with
+       | (a, after) -> (updateColumn k (setCellAlignment (V.getOr CellAlignment.AlignLeft alignments a)) t, after))
+  | (3, next) ->
+      (match readConstraint next with
+       | (c, after) -> (updateColumn k (setConstraint c) t, after))
+  | (_, next) -> (updateColumn k removeConstraint t, next)
+
+-- Repeats `step` `n` times from `i`, threading `x`.
+@cfg(test)
+fun times n i x step =
+  let rec go k at acc =
+    if k >= n
+    then (acc, at)
+    else
+      match step at acc with
+      | (acc2, next) -> go (k + 1) next acc2
+  in
+  go 0 i x
+
+@cfg(test)
+fun readTable i =
+  let style = readStyle i in
+  let arrangement = num (snd style) 1 in
+  let width = maybeAt (snd arrangement) (\at -> num at 2) in
+  let d = maybeAt (snd width) charAt in
+  let indicator = maybeAt (snd d) str in
+  let styled = flag (snd indicator) in
+  let textOnly = flag (snd styled) in
+  let arrangements = [ContentArrangement.Disabled, ContentArrangement.Dynamic, ContentArrangement.DynamicFullWidth] in
+  let t0 =
+    table
+      |> loadStyle (fst style)
+      |> setContentArrangement (V.getOr ContentArrangement.Disabled arrangements (fst arrangement))
+  in
+  let t1 =
+    match fst width with
+    | Just w -> setWidth w t0
+    | None -> t0
+  in
+  let t2 =
+    match fst d with
+    | Just ch -> setDelimiter ch t1
+    | None -> t1
+  in
+  let t3 =
+    match fst indicator with
+    | Just s -> setTruncationIndicator s t2
+    | None -> t2
+  in
+  let t4 = if fst styled then enforceStyling t3 else t3 in
+  let t5 = if fst textOnly then setStyleTextOnly t4 else t4 in
+  let header = maybeAt (snd textOnly) readRow in
+  let t6 =
+    match fst header with
+    | Just h -> setHeader h t5
+    | None -> t5
+  in
+  let rowCountAt = num (snd header) 1 in
+  let withRows =
+    times (fst rowCountAt) (snd rowCountAt) t6 (\at t ->
+      match readRow at with
+      | (r, next) -> (addRow r t, next))
+  in
+  let opCount = num (snd withRows) 1 in
+  let withOps = times (fst opCount) (snd opCount) (fst withRows) (\at t -> readColumnOp at t) in
+  let constraintCount = num (snd withOps) 1 in
+  let constraints =
+    times (fst constraintCount) (snd constraintCount) V.empty (\at acc ->
+      match readConstraint at with
+      | (c, next) -> (V.pushBack acc c, next))
+  in
+  (setConstraints (fst constraints) (fst withOps), snd constraints)
+
+-- --- checking -----------------------------------------------------------------------------
+
+@cfg(test)
+fun boolText b = if b then "true" else "false"
+
+@cfg(test)
+fun runCase i =
+  match readTable i with
+  | (t, at) ->
+      let drawn = str at in
+      let trimmed = maybeAt (snd drawn) str in
+      let summary = str (snd trimmed) in
+      let widths = S.join "," (V.map (\w -> "${w}") (columnMaxContentWidths t)) in
+      let counts = "${widths} ${columnCount t} ${rowCount t} ${boolText (isEmpty t)}" in
+      let text = render t in
+      let want =
+        match fst trimmed with
+        | Just s -> [fst drawn, s, fst summary]
+        | None -> [fst drawn, fst summary]
+      in
+      let got =
+        match fst trimmed with
+        | Just _ -> [text, trimFmt t, counts]
+        | None -> [text, counts]
+      in
+      (want, got, snd summary)
+
+@cfg(test)
+fun check i n bad =
+  if i >= stringByteLength cases
+  then (n, bad)
+  else
+    match runCase i with
+    | (want, got, next) -> check next (n + 1) (if want == got then bad else V.pushBack bad (n, want, got))
+
+-- The number of tables, and the first few the port draws differently.
+@cfg(test)
+@test fun resultsMatchTheCrate () =
+  match check 0 0 V.empty with
+  | (n, bad) -> assertEq (n, V.take bad 2) (1000, []) "tables the port and comfy-table draw differently"
+
+@cfg(test)
+@test fun examples () =
+  let simple = table |> setHeader (rowOf ["Name", "Age"]) |> addRow (rowOf ["Ada", "36"]) in
+  let a =
+    assertEq
+      (lines simple)
+      ["+------+-----+", "| Name | Age |", "+============+", "| Ada  | 36  |", "+------+-----+"]
+      "ascii"
+  in
+  let wrapped =
+    table
+      |> loadStyle utf8Full
+      |> setWidth 24
+      |> setContentArrangement ContentArrangement.Dynamic
+      |> addRow (rowOf ["one two three four five six"])
+  in
+  assertEq
+    (lines wrapped)
+    ["┌──────────────────────┐", "│ one two three four   │", "│ five six             │", "└──────────────────────┘"]
+    "wrapped"

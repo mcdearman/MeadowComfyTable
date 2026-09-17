@@ -1,0 +1,96 @@
+-- Cells, rows and columns: the crate's `src/cell.rs`, `src/row.rs` and
+-- `src/column.rs`.
+--
+-- Copyright Arne Beer and the comfy-table contributors, and the Meadow port's
+-- authors. Licensed under MIT: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use Std.String as S
+use unicodeWidth (width)
+use comfyTable.Style
+
+-- One cell: its lines of text, and how they are split, aligned and styled.
+@pub record Cell = {
+  content : [String],
+  delimiter : Maybe Char,
+  alignment : Maybe CellAlignment,
+  fg : Maybe Color,
+  bg : Maybe Color,
+  attributes : [Attribute]
+}
+
+-- A cell holding `text`, one line per line of it.
+@pub fun cell text =
+  Cell { content = S.split "\n" text, delimiter = None, alignment = None, fg = None, bg = None, attributes = [] }
+
+-- The cell's text.
+@pub fun cellContent (c : Cell) = S.join "\n" c.content
+
+-- Where long lines of the cell may be split, in place of a space.
+@pub fun setCellDelimiter d (c : Cell) = { c | delimiter = Just d }
+
+@pub fun setAlignment a (c : Cell) = { c | alignment = Just a }
+
+-- The text colour, shown when the table is styled.
+@pub fun setFg color (c : Cell) = { c | fg = Just color }
+
+-- The background colour, shown when the table is styled.
+@pub fun setBg color (c : Cell) = { c | bg = Just color }
+
+@pub fun addAttribute a (c : Cell) = { c | attributes = V.pushBack c.attributes a }
+
+@pub fun addAttributes attrs (c : Cell) = { c | attributes = V.append c.attributes attrs }
+
+-- A row: its cells, and how many lines it may take.
+@pub record Row = { index : Maybe Int, cells : [Cell], maxHeight : Maybe Int }
+
+-- A row of `cells`.
+@pub fun row cells = Row { index = None, cells = cells, maxHeight = None }
+
+-- A row with a cell for each of `texts`.
+@pub fun rowOf texts = row (V.map cell texts)
+
+@pub fun addCell c (r : Row) = { r | cells = V.pushBack r.cells c }
+
+-- At most `lines` lines (and at least one) for the row: longer cells are cut
+-- short and end with the table's truncation indicator.
+@pub fun setMaxHeight lines (r : Row) = { r | maxHeight = Just (if lines < 1 then 1 else lines) }
+
+@pub fun cellCount (r : Row) = V.len r.cells
+
+-- The width of the widest line of each cell.
+@pub(pkg) fun maxContentWidths (r : Row) =
+  V.map (\(c : Cell) -> V.foldl (\m line -> let w = width line in if w > m then w else m) 0 c.content) r.cells
+
+-- A column: its padding, delimiter, alignment and width constraint.
+@pub record Column = {
+  index : Int,
+  padding : (Int, Int),
+  delimiter : Maybe Char,
+  cellAlignment : Maybe CellAlignment,
+  constraint : Maybe ColumnConstraint
+}
+
+-- The column at `index`, with a space of padding on each side.
+@pub fun column index =
+  Column { index = index, padding = (1, 1), delimiter = None, cellAlignment = None, constraint = None }
+
+-- Spaces to the left and right of the column's content.
+@pub fun setPadding p (c : Column) = { c | padding = p }
+
+@pub fun paddingWidth (c : Column) = fst c.padding + snd c.padding
+
+-- Where long lines in the column may be split, in place of a space.
+@pub fun setColumnDelimiter d (c : Column) = { c | delimiter = Just d }
+
+@pub fun setConstraint k (c : Column) = { c | constraint = Just k }
+
+@pub fun removeConstraint (c : Column) = { c | constraint = None }
+
+@pub fun isHidden (c : Column) =
+  match c.constraint with
+  | Just ColumnConstraint.Hidden -> True
+  | _ -> False
+
+-- How the column's cells are aligned, unless a cell says otherwise.
+@pub fun setCellAlignment a (c : Column) = { c | cellAlignment = Just a }
