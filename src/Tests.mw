@@ -12,15 +12,15 @@ use Std.Collections.Vector as V
 @cfg(test)
 use Std.String as S
 @cfg(test)
-use comfyTable.Cases (cases)
+use ComfyTable.Cases (cases)
 @cfg(test)
-use comfyTable.Style
+use ComfyTable.Style
 @cfg(test)
-use comfyTable.Cell
+use ComfyTable.Cell
 @cfg(test)
-use comfyTable.Table
+use ComfyTable.Table
 @cfg(test)
-use comfyTable.Render
+use ComfyTable.Render
 
 -- --- reading ------------------------------------------------------------------------------
 

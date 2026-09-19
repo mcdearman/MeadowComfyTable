@@ -2,7 +2,7 @@
 -- content wrapped to fit a width. A port of Rust's `comfy-table` crate,
 -- version 8.0.0.
 --
---   use comfyTable (table, setHeader, addRow, rowOf, render)
+--   use ComfyTable (table, setHeader, addRow, rowOf, render)
 --
 --   render (table |> setHeader (rowOf ["Name", "Age"]) |> addRow (rowOf ["Ada", "36"]))
 --     -- +------+-----+
@@ -23,13 +23,13 @@ mod Cases
 @cfg(test)
 mod Tests
 
-@pub use comfyTable.Style
-@pub use comfyTable.Style.CellAlignment.*
-@pub use comfyTable.Style.Width.*
-@pub use comfyTable.Style.ColumnConstraint.*
-@pub use comfyTable.Style.ContentArrangement.*
-@pub use comfyTable.Style.Color.*
-@pub use comfyTable.Cell
-@pub use comfyTable.Table
-@pub use comfyTable.Split (measureTextWidth)
-@pub use comfyTable.Render
+@pub use ComfyTable.Style
+@pub use ComfyTable.Style.CellAlignment.*
+@pub use ComfyTable.Style.Width.*
+@pub use ComfyTable.Style.ColumnConstraint.*
+@pub use ComfyTable.Style.ContentArrangement.*
+@pub use ComfyTable.Style.Color.*
+@pub use ComfyTable.Cell
+@pub use ComfyTable.Table
+@pub use ComfyTable.Split (measureTextWidth)
+@pub use ComfyTable.Render

@@ -6,8 +6,8 @@
 -- authors. Licensed under MIT: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use comfyTable.Style
-use comfyTable.Cell
+use ComfyTable.Style
+use ComfyTable.Cell
 
 @pub record Table = {
   columns : [Column],

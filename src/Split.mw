@@ -6,8 +6,8 @@
 
 use Std.Collections.Vector as V
 use Std.String as S
-use unicodeWidth (width)
-use unicodeSegmentation (graphemeIndices)
+use UnicodeWidth (width)
+use UnicodeSegmentation (graphemeIndices)
 
 -- The columns `s` takes.
 @pub fun measureTextWidth s = width s

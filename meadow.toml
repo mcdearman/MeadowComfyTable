@@ -1,7 +1,0 @@
-[package]
-name = "comfyTable"
-version = "0.1.0"
-
-[dependencies]
-unicodeWidth = { git = "https://github.com/mcdearman/meadow-unicode-width", version = "0.1.0" }
-unicodeSegmentation = { git = "https://github.com/mcdearman/meadow-unicode-segmentation", version = "0.1.0" }

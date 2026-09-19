@@ -6,8 +6,8 @@
 
 use Std.Collections.Vector as V
 use Std.String as S
-use unicodeWidth (width)
-use comfyTable.Style
+use UnicodeWidth (width)
+use ComfyTable.Style
 
 -- One cell: its lines of text, and how they are split, aligned and styled.
 @pub record Cell = {

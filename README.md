@@ -11,13 +11,13 @@ written with the same escape sequences as crossterm 0.29, which the crate uses.
 ## Install
 
 ```sh
-meadow add mcdearman/meadow-comfy-table
+meadow add mcdearman/MeadowComfyTable
 ```
 
 ## Use
 
 ```meadow
-use comfyTable
+use ComfyTable
 
 def main =
   table
@@ -119,8 +119,8 @@ unqualified: write `Attribute.Bold`. `CellAlignment` constructors are
 
 The modules in `src/` are hand translations of the crate's layout, splitting,
 formatting and border drawing. Text widths come from
-[unicodeWidth](https://github.com/mcdearman/meadow-unicode-width) and graphemes
-from [unicodeSegmentation](https://github.com/mcdearman/meadow-unicode-segmentation),
+[unicodeWidth](https://github.com/mcdearman/MeadowUnicodeWidth) and graphemes
+from [unicodeSegmentation](https://github.com/mcdearman/MeadowUnicodeSegmentation),
 which port the same crate versions that comfy-table 8.0.0 uses.
 
 **`src/Cases.mw`** holds 1,000 random tables. Each one records the steps that
