@@ -1,0 +1,18 @@
+# Written by meadow. Commit this file: it is what makes a build on
+# another machine the build you tested. Change it with `meadow update`.
+
+version = 1
+
+[[package]]
+name = "UnicodeSegmentation"
+source = "git+https://github.com/mcdearman/MeadowUnicodeSegmentation?version=0.2.0"
+version = "0.2.0"
+rev = "8d4055797df0928c16c55eac1c0b66f080b29f01"
+tree = "6768f691b32e4154a397832b892e18596ab4687c"
+
+[[package]]
+name = "UnicodeWidth"
+source = "git+https://github.com/mcdearman/MeadowUnicodeWidth?version=0.2.0"
+version = "0.2.0"
+rev = "a4580b8010ecfba736c0f7d105a308db6972e60e"
+tree = "018d5c43b7b4c92e41fdcb4b91907ae7654bd335"
