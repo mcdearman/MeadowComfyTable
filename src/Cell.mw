@@ -10,6 +10,7 @@ use UnicodeWidth (width)
 use Picnic.Style
 
 -- One cell: its lines of text, and how they are split, aligned and styled.
+@derive(PartialEq)
 @pub record Cell = {
   content : [String],
   delimiter : Maybe Char,
@@ -42,6 +43,7 @@ use Picnic.Style
 @pub fun addAttributes attrs (c : Cell) = { c | attributes = V.append c.attributes attrs }
 
 -- A row: its cells, and how many lines it may take.
+@derive(PartialEq)
 @pub record Row = { index : Maybe Int, cells : [Cell], maxHeight : Maybe Int }
 
 -- A row of `cells`.

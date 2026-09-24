@@ -10,6 +10,7 @@ use Picnic.Table
 use Picnic.Split (splitLine, measureTextWidth)
 
 -- What drawing needs to know of a column.
+@derive(PartialEq)
 @pub(pkg) record DisplayInfo = {
   padding : (Int, Int),
   delimiter : Maybe Char,

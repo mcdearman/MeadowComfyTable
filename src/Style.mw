@@ -9,13 +9,16 @@
 use Std.Collections.Vector as V
 
 -- Where a cell's text sits within its column.
+@derive(PartialEq)
 @pub data CellAlignment = AlignLeft | AlignRight | AlignCenter
 
 -- A width: a number of characters, or a share of the table's width, with
 -- borders taken out.
+@derive(PartialEq)
 @pub data Width = Fixed Int | Percentage Int
 
 -- How wide a column may be.
+@derive(PartialEq)
 @pub data ColumnConstraint =
   -- Not shown at all.
   Hidden
@@ -40,6 +43,7 @@ use Std.Collections.Vector as V
   | DynamicFullWidth
 
 -- A colour for a cell's text or background.
+@derive(PartialEq)
 @pub data Color =
   Reset
   | Black
@@ -62,6 +66,7 @@ use Std.Collections.Vector as V
   | AnsiValue Int
 
 -- A text attribute for a cell.
+@derive(PartialEq)
 @pub data Attribute =
   Reset
   | Bold
