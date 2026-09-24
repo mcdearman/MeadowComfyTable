@@ -1,4 +1,4 @@
-# comfyTable
+# picnic
 
 Tables for the terminal, for [Meadow](https://github.com/mcdearman/meadow). It
 draws borders, aligns text, colours cells, and wraps content to fit a width.
@@ -11,13 +11,13 @@ written with the same escape sequences as crossterm 0.29, which the crate uses.
 ## Install
 
 ```sh
-meadow add mcdearman/MeadowComfyTable
+meadow add mcdearman/Picnic
 ```
 
 ## Use
 
 ```meadow
-use ComfyTable
+use Picnic
 
 def main =
   table
@@ -119,8 +119,8 @@ unqualified: write `Attribute.Bold`. `CellAlignment` constructors are
 
 The modules in `src/` are hand translations of the crate's layout, splitting,
 formatting and border drawing. Text widths come from
-[unicodeWidth](https://github.com/mcdearman/MeadowUnicodeWidth) and graphemes
-from [unicodeSegmentation](https://github.com/mcdearman/MeadowUnicodeSegmentation),
+[unicodeWidth](https://github.com/mcdearman/UnicodeWidth) and graphemes
+from [unicodeSegmentation](https://github.com/mcdearman/UnicodeSegmentation),
 which port the same crate versions that comfy-table 8.0.0 uses.
 
 **`src/Cases.mw`** holds 1,000 random tables. Each one records the steps that

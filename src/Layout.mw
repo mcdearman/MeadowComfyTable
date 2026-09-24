@@ -4,10 +4,10 @@
 -- authors. Licensed under MIT: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use ComfyTable.Style
-use ComfyTable.Cell
-use ComfyTable.Table
-use ComfyTable.Split (splitLine, measureTextWidth)
+use Picnic.Style
+use Picnic.Cell
+use Picnic.Table
+use Picnic.Split (splitLine, measureTextWidth)
 
 -- What drawing needs to know of a column.
 @pub(pkg) record DisplayInfo = {

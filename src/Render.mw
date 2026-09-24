@@ -5,9 +5,9 @@
 
 use Std.Collections.Vector as V
 use Std.String as S
-use ComfyTable.Table
-use ComfyTable.Layout (arrangeContent)
-use ComfyTable.Format (formatContent, drawBorders)
+use Picnic.Table
+use Picnic.Layout (arrangeContent)
+use Picnic.Format (formatContent, drawBorders)
 
 -- The table's lines.
 @pub fun lines t =

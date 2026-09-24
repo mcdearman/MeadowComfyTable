@@ -9,11 +9,11 @@ use Std.Collections.Vector as V
 use Std.String as S
 use UnicodeWidth (width)
 use UnicodeSegmentation (graphemeIndices)
-use ComfyTable.Style
-use ComfyTable.Cell
-use ComfyTable.Table
-use ComfyTable.Split (splitLine)
-use ComfyTable.Layout (DisplayInfo, arrangeContent, infoWidth)
+use Picnic.Style
+use Picnic.Cell
+use Picnic.Table
+use Picnic.Split (splitLine)
+use Picnic.Layout (DisplayInfo, arrangeContent, infoWidth)
 
 fun sat a b = if a > b then a - b else 0
 

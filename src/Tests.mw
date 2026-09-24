@@ -12,15 +12,15 @@ use Std.Collections.Vector as V
 @cfg(test)
 use Std.String as S
 @cfg(test)
-use ComfyTable.Cases (cases)
+use Picnic.Cases (cases)
 @cfg(test)
-use ComfyTable.Style
+use Picnic.Style
 @cfg(test)
-use ComfyTable.Cell
+use Picnic.Cell
 @cfg(test)
-use ComfyTable.Table
+use Picnic.Table
 @cfg(test)
-use ComfyTable.Render
+use Picnic.Render
 
 -- --- reading ------------------------------------------------------------------------------
 

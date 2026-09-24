@@ -7,7 +7,7 @@
 use Std.Collections.Vector as V
 use Std.String as S
 use UnicodeWidth (width)
-use ComfyTable.Style
+use Picnic.Style
 
 -- One cell: its lines of text, and how they are split, aligned and styled.
 @pub record Cell = {

@@ -6,8 +6,8 @@
 -- authors. Licensed under MIT: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use ComfyTable.Style
-use ComfyTable.Cell
+use Picnic.Style
+use Picnic.Cell
 
 @pub record Table = {
   columns : [Column],
